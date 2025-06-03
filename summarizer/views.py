@@ -17,7 +17,7 @@ class PDFSummaryView(APIView):
     def post(self, request):
         pdf_file = request.FILES['file']
         
-        # استخراج متن از PDF
+        
         reader = PdfReader(pdf_file)
         raw_text = ""
         for page in reader.pages:
