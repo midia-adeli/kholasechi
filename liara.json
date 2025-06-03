@@ -3,9 +3,7 @@
   "port": 80,
   "team-id": "683eda987a9f35fc0dd5bdee",
   "build": {
-    "location": "iran",
-    "useMirror": false
-
+    "location": "iran"
   },
   "disks": []
 }
