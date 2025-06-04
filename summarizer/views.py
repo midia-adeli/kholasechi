@@ -53,7 +53,7 @@ class PDFSummaryView(APIView):
 
         try:
             completion = client.chat.completions.create(
-                model="google/gemini-2.0-flash-001", # شناسه مدل مطابق با مستندات لیارا
+                model="openai/gpt-4.1", # شناسه مدل مطابق با مستندات لیارا
                 messages=[
                     {
                         "role": "user",
