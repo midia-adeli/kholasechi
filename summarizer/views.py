@@ -1,6 +1,6 @@
 import os
 import uuid
-import fitz  
+import fitz
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser
@@ -9,6 +9,8 @@ from django.conf import settings
 from django.shortcuts import render
 from openai import OpenAI
 import logging
+import httpx  # اضافه شده برای تست مستقیم و بررسی نسخه
+import inspect # اضافه شده برای بررسی امضای تابع
 
 logger = logging.getLogger(__name__)
 
@@ -25,12 +27,12 @@ class PDFSummaryView(APIView):
     parser_classes = [MultiPartParser]
 
     def post(self, request):
-        if not LIARA_API_KEY or LIARA_API_KEY == "کلید_API_لیارا_خود_را_اینجا_وارد_کنید": # این بخش برای زمانی بود که کلید را در کد قرار می‌دادید
+        if not LIARA_API_KEY or LIARA_API_KEY == "کلید_API_لیارا_خود_را_اینجا_وارد_کنید":
             logger.error("کلید API لیارا به درستی تنظیم نشده است.")
             return Response({"error": "پیکربندی سمت سرور برای کلید API ناقص است."}, status=500)
 
-        pdf_file = request.data.get('file') # برای MultiPartParser از request.data استفاده کنید
-        summary_length_percent_str = request.data.get('summary_length_percent', '50') # پیش‌فرض ۵۰٪
+        pdf_file = request.data.get('file')
+        summary_length_percent_str = request.data.get('summary_length_percent', '50')
 
         if not pdf_file:
             logger.warning("هیچ فایلی در درخواست ارسال نشده است.")
@@ -45,28 +47,22 @@ class PDFSummaryView(APIView):
             logger.warning(f"مقدار غیر عددی برای درصد طول خلاصه دریافت شد: {summary_length_percent_str}، از پیش‌فرض ۵۰٪ استفاده می‌شود.")
             summary_length_percent = 50
         
-        # تبدیل درصد به یک عبارت توصیفی برای پرامپت
         if summary_length_percent == 25:
             length_description = (
                 "خلاصه باید بسیار کوتاه و موجز باشد؛ معادل حدود ۲۵٪ از حجم کل متن. لطفاً تنها بر مهم‌ترین نکات، ایده‌های اصلی و نتیجه‌گیری نهایی تمرکز کنید. "
                 "هدف، ارائه‌ی دیدی سریع و فشرده از پیام اصلی نویسنده است. از ذکر جزئیات، مثال‌ها یا بحث‌های فرعی خودداری شود، مگر آنکه برای درک ایده‌ی اصلی کاملاً ضروری باشند."
             )
-
         elif summary_length_percent == 75:
             length_description = (
                 "خلاصه باید جامع و با جزئیات فراوان باشد؛ معادل حدود ۷۵٪ از محتوای متن اصلی. لطفاً به‌صورت دقیق و کامل به تمامی بخش‌ها بپردازید، "
                 "و نکات کلیدی، جزئیات مهم، استدلال‌ها و در صورت لزوم، مثال‌ها یا داده‌های پشتیبان را نیز ذکر کنید. "
                 "هدف، ارائه‌ی بازنمایی‌ای نزدیک به متن کامل است."
             )
-
         else:  # summary_length_percent == 50 or default
             length_description = (
                 "خلاصه باید متعادل و با پوشش کلی از متن باشد؛ در حدود ۵۰٪ از حجم کل. لطفاً به بخش‌های اصلی اشاره کنید و نکات کلیدی، جزئیات مهم و استدلال‌های اصلی را نیز لحاظ کنید. "
                 "هدف، ارائه‌ی درک کامل و مناسبی از محتوا است، بدون ورود به جزئیات ریز یا موضوعات فرعی."
             )
-
-                
-
 
         original_filename = pdf_file.name
         logger.info(f"شروع پردازش فایل: {original_filename} با درخواست طول خلاصه: {summary_length_percent}%")
@@ -91,11 +87,46 @@ class PDFSummaryView(APIView):
             logger.error(f"خطا در پردازش فایل PDF '{original_filename}' با PyMuPDF: {e}", exc_info=True)
             return Response({"error": f"خطا در خواندن یا پردازش فایل PDF: {e}"}, status=500)
 
+        # --- شروع بلوک کد تشخیصی برای httpx ---
+        logger.info("--- START HTTPX DIAGNOSTIC BLOCK ---")
         try:
+            logger.info(f"VIEW_RUNTIME: httpx version from import: {httpx.__version__}")
+            logger.info(f"VIEW_RUNTIME: httpx file from import: {httpx.__file__}")
+            
+            # تلاش برای بررسی امضای سازنده httpx.Client
+            client_init_signature = inspect.signature(httpx.Client.__init__)
+            logger.info(f"VIEW_RUNTIME: httpx.Client.__init__ signature: {client_init_signature}")
+            
+            if 'proxies' not in client_init_signature.parameters:
+                logger.error("VIEW_RUNTIME: CRITICAL! 'proxies' parameter NOT FOUND in httpx.Client.__init__ signature!")
+            else:
+                logger.info("VIEW_RUNTIME: 'proxies' parameter FOUND in httpx.Client.__init__ signature as expected.")
+        except Exception as sig_e:
+            logger.error(f"VIEW_RUNTIME: Error inspecting httpx.Client signature: {sig_e}", exc_info=True)
+
+        # تلاش برای ایجاد مستقیم یک نمونه از httpx.Client برای تست
+        try:
+            logger.info("VIEW_RUNTIME: Attempting to create a test httpx.Client(proxies=None)")
+            test_httpx_client = httpx.Client()
+            logger.info("VIEW_RUNTIME: Successfully created test httpx.Client(proxies=None). Closing it now.")
+            test_httpx_client.close()
+        except TypeError as te_test:
+            logger.error(f"VIEW_RUNTIME: CRITICAL TypeError when directly creating httpx.Client(proxies=None): {te_test}", exc_info=True)
+            # اگر اینجا خطا بدهد، مشکل قطعاً از خود httpx در محیط Gunicorn است، علی‌رغم نسخه صحیح
+            return Response({"error": f"Internal error with httpx client setup (direct test failed - TypeError): {te_test}"}, status=500)
+        except Exception as e_test:
+            logger.error(f"VIEW_RUNTIME: Other error when directly creating httpx.Client(proxies=None): {e_test}", exc_info=True)
+            return Response({"error": f"Internal error with httpx client setup (direct test failed - other error): {e_test}"}, status=500)
+        logger.info("--- END HTTPX DIAGNOSTIC BLOCK ---")
+        # --- پایان بلوک کد تشخیصی برای httpx ---
+
+        try:
+            logger.info("Attempting to initialize OpenAI client...")
             client = OpenAI(
                 base_url=LIARA_AI_BASE_URL,
                 api_key=LIARA_API_KEY,
             )
+            logger.info("OpenAI client initialized successfully.")
             
             prompt_content = f"""📌 نقش شما:
             شما یک مدل زبان بزرگ (LLM) هستید که نقش یک تحلیلگر زبان‌شناس، خلاصه‌ساز تخصصی، مترجم حرفه‌ای و پردازشگر دقیق اسناد PDF را ایفا می‌کند. هدف شما دریافت فایل PDF آپلودشده توسط کاربر، بررسی زبان و ساختار آن، پردازش دقیق محتوای متنی، ترجمه در صورت نیاز، و ارائه یک خلاصه‌ی دقیق، حرفه‌ای و ساختاریافته است که به‌صورت روان و مفید برای کاربر فارسی‌زبان ارائه می‌شود.
@@ -178,9 +209,9 @@ class PDFSummaryView(APIView):
             generated_text = completion.choices[0].message.content.strip()
             logger.info(f"پاسخ با موفقیت از سرویس هوش مصنوعی برای فایل '{original_filename}' دریافت شد.")
 
-        except Exception as e:
-            logger.error(f"خطا در ارتباط با سرویس هوش مصنوعی لیارا برای فایل '{original_filename}': {e}", exc_info=True)
-            return Response({"error": f"خطا در ارتباط با سرویس هوش مصنوعی: {e}"}, status=500)
+        except Exception as e: # این except باید کلی‌تر باشد تا خطای اصلی OpenAI را هم بگیرد
+            logger.error(f"خطا در ارتباط با سرویس هوش مصنوعی لیارا یا در پردازش آن برای فایل '{original_filename}': {e}", exc_info=True)
+            return Response({"error": f"خطا در ارتباط با سرویس هوش مصنوعی یا پردازش: {e}"}, status=500)
 
         docx_url = ""
         media_root = getattr(settings, 'MEDIA_ROOT', None)
