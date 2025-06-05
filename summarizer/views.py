@@ -98,7 +98,7 @@ class PDFSummaryView(APIView):
             logger.info(f"VIEW_RUNTIME: httpx.Client.__init__ signature: {client_init_signature}")
             
             if 'proxies' not in client_init_signature.parameters:
-                logger.error("VIEW_RUNTIME: CRITICAL! 'proxies' parameter NOT FOUND in httpx.Client.__init__ signature!")
+                logger.warning("VIEW_RUNTIME: 'proxies' parameter NOT FOUND in httpx.Client.__init__ signature. This might be an older httpx version.")
             else:
                 logger.info("VIEW_RUNTIME: 'proxies' parameter FOUND in httpx.Client.__init__ signature as expected.")
         except Exception as sig_e:
@@ -106,16 +106,15 @@ class PDFSummaryView(APIView):
 
         # تلاش برای ایجاد مستقیم یک نمونه از httpx.Client برای تست
         try:
-            logger.info("VIEW_RUNTIME: Attempting to create a test httpx.Client(proxies=None)")
-            test_httpx_client = httpx.Client()
-            logger.info("VIEW_RUNTIME: Successfully created test httpx.Client(proxies=None). Closing it now.")
+            logger.info("VIEW_RUNTIME: Attempting to create a test httpx.Client()") # Changed this line
+            test_httpx_client = httpx.Client() # MODIFIED: Removed proxies=None
+            logger.info("VIEW_RUNTIME: Successfully created test httpx.Client(). Closing it now.") # Changed this line
             test_httpx_client.close()
         except TypeError as te_test:
-            logger.error(f"VIEW_RUNTIME: CRITICAL TypeError when directly creating httpx.Client(proxies=None): {te_test}", exc_info=True)
-            # اگر اینجا خطا بدهد، مشکل قطعاً از خود httpx در محیط Gunicorn است، علی‌رغم نسخه صحیح
+            logger.error(f"VIEW_RUNTIME: CRITICAL TypeError when directly creating httpx.Client(): {te_test}", exc_info=True) # Changed this line
             return Response({"error": f"Internal error with httpx client setup (direct test failed - TypeError): {te_test}"}, status=500)
         except Exception as e_test:
-            logger.error(f"VIEW_RUNTIME: Other error when directly creating httpx.Client(proxies=None): {e_test}", exc_info=True)
+            logger.error(f"VIEW_RUNTIME: Other error when directly creating httpx.Client(): {e_test}", exc_info=True) # Changed this line
             return Response({"error": f"Internal error with httpx client setup (direct test failed - other error): {e_test}"}, status=500)
         logger.info("--- END HTTPX DIAGNOSTIC BLOCK ---")
         # --- پایان بلوک کد تشخیصی برای httpx ---
