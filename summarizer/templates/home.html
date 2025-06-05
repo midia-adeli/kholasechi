@@ -1,90 +1,177 @@
 <!DOCTYPE html>
-<html lang="fa">
+<html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>خلاصه‌کننده PDF با Gemini</title>
+    <title>خلاصه‌کننده و مترجم PDF</title>
     <style>
         body {
-            font-family: sans-serif;
-            max-width: 600px;
-            margin: 50px auto;
+            font-family: 'Tahoma', sans-serif; /* یک فونت فارسی مناسب */
+            max-width: 700px;
+            margin: 40px auto;
             background-color: #f9f9f9;
             padding: 30px;
             border-radius: 12px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            line-height: 1.6;
         }
 
         h2 {
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
+            color: #333;
         }
 
-        input[type="file"] {
+        form div {
+            margin-bottom: 15px;
+        }
+
+        label {
             display: block;
-            margin: 20px auto;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        input[type="file"], select {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-sizing: border-box; /* برای اینکه padding عرض را زیاد نکند */
         }
 
         button {
             display: block;
-            margin: 10px auto;
-            padding: 10px 20px;
+            width: 100%;
+            padding: 12px 20px;
             background-color: #4CAF50;
             border: none;
             color: white;
             font-size: 16px;
             cursor: pointer;
             border-radius: 6px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #45a049;
         }
 
         #result {
-            margin-top: 20px;
-            white-space: pre-wrap;
+            margin-top: 30px;
+            white-space: pre-wrap; /* برای حفظ فاصله‌ها و خطوط جدید */
             background-color: #fff;
-            padding: 15px;
+            padding: 20px;
             border-radius: 8px;
-            border: 1px solid #ccc;
+            border: 1px solid #ddd;
+            text-align: justify; /* برای خوانایی بهتر متن فارسی */
+        }
+        .loading-text {
+            color: #777;
+            font-style: italic;
+        }
+        .error-text {
+            color: #d9534f;
+            font-weight: bold;
+        }
+        #result a {
+            display: inline-block;
+            margin-top: 15px;
+            padding: 8px 15px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        #result a:hover {
+            background-color: #0056b3;
         }
     </style>
 </head>
 <body>
-    <h2>آپلود PDF برای خلاصه‌سازی</h2>
+    <h2>آپلود PDF برای ترجمه و خلاصه‌سازی</h2>
     <form id="uploadForm">
-        <input type="file" id="pdfFile" name="file" accept="application/pdf" required>
-        <button type="submit">ارسال برای خلاصه‌سازی</button>
+        <div>
+            <label for="pdfFile">فایل PDF را انتخاب کنید:</label>
+            <input type="file" id="pdfFile" name="file" accept="application/pdf" required>
+        </div>
+        <div>
+            <label for="summaryLength">طول خلاصه مورد نظر (نسبت به متن اصلی/ترجمه‌شده):</label>
+            <select id="summaryLength" name="summary_length_percent">
+                <option value="25">۲۵٪ (خلاصه کوتاه)</option>
+                <option value="50" selected>۵۰٪ (خلاصه متوسط)</option>
+                <option value="75">۷۵٪ (خلاصه طولانی)</option>
+            </select>
+        </div>
+        <button type="submit" id="submitButton">ارسال و پردازش</button>
     </form>
 
-    <div id="result"></div>
+    <div id="result">نتایج در اینجا نمایش داده خواهد شد...</div>
 
     <script>
         const form = document.getElementById('uploadForm');
         const resultDiv = document.getElementById('result');
+        const submitButton = document.getElementById('submitButton');
 
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
 
             const fileInput = document.getElementById('pdfFile');
+            const summaryLengthSelect = document.getElementById('summaryLength');
+            
+            if (!fileInput.files || fileInput.files.length === 0) {
+                resultDiv.textContent = 'لطفاً یک فایل PDF انتخاب کنید.';
+                resultDiv.className = 'error-text';
+                return;
+            }
             const file = fileInput.files[0];
+            const summaryLengthPercent = summaryLengthSelect.value;
 
             const formData = new FormData();
             formData.append('file', file);
+            formData.append('summary_length_percent', summaryLengthPercent);
 
-            resultDiv.textContent = 'در حال ارسال فایل و دریافت خلاصه...';
+            resultDiv.textContent = 'در حال ارسال فایل و پردازش... لطفاً کمی صبر کنید.';
+            resultDiv.className = 'loading-text'; // کلاس برای استایل متن لودینگ
+            submitButton.disabled = true; // غیرفعال کردن دکمه هنگام پردازش
 
             try {
-                const response = await fetch('/api/pdf-summary/', {
+                const response = await fetch('/api/pdf-summary/', { // مطمئن شوید این URL صحیح است
                     method: 'POST',
                     body: formData
+                    // نیازی به 'Content-Type': 'multipart/form-data' نیست؛ مرورگر خودش تنظیم می‌کند
                 });
 
-                const data = await response.json();
-                if (data.summary) {
-                    resultDiv.innerHTML = `<strong>خلاصه:</strong><br><br>${data.summary}<br><br><a href="${data.docx_url}" target="_blank">دانلود فایل Word</a>`;
+                // بررسی نوع محتوای پاسخ قبل از تلاش برای خواندن JSON
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.indexOf("application/json") !== -1) {
+                    const data = await response.json();
+                    resultDiv.className = ''; // حذف کلاس‌های قبلی
+
+                    if (response.ok && data.summary) {
+                        let htmlResult = `<strong>نتایج پردازش:</strong><br><br><div style="text-align: right;">${data.summary}</div>`;
+                        if (data.docx_url) {
+                            htmlResult += `<br><br><a href="${data.docx_url}" target="_blank">دانلود فایل Word نتایج</a>`;
+                        }
+                        resultDiv.innerHTML = htmlResult;
+                    } else {
+                        resultDiv.textContent = data.error || 'خطایی در پردازش فایل رخ داد.';
+                        resultDiv.className = 'error-text';
+                    }
                 } else {
-                    resultDiv.textContent = 'خطایی در دریافت خلاصه رخ داد.';
+                    const textResponse = await response.text();
+                    resultDiv.textContent = 'پاسخ غیرمنتظره از سرور دریافت شد: ' + textResponse;
+                    resultDiv.className = 'error-text';
+                    console.error("Non-JSON response:", textResponse);
                 }
             } catch (error) {
-                resultDiv.textContent = 'خطا در ارسال فایل!';
-                console.error(error);
+                resultDiv.textContent = 'خطا در برقراری ارتباط با سرور!';
+                resultDiv.className = 'error-text';
+                console.error('Fetch error:', error);
+            } finally {
+                submitButton.disabled = false; // فعال کردن مجدد دکمه
             }
         });
     </script>
